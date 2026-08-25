@@ -5,7 +5,6 @@ import {
   loadLocal, saveLocal, money, csv, isRemote,
   apiList, apiInsert, apiDelete, apiRpc
 } from "@/lib/db";
-import "./phase1.css";
 
 const menu = [
   ["dashboard","Dashboard","▦"],
@@ -474,7 +473,7 @@ export default function Home() {
             {tab === "warehouse" && <Warehouses data={data} onAdd={() => setModal("warehouse")} onDelete={id => deleteEntity("warehouse", id)} />}
             {tab === "reports" && <Reports data={data} totalSales={totalSales} totalExpenses={totalExpenses} />}
           </>
-        )}
+        }
       </section>
 
       {modal === "sale" && <SaleModal data={data} close={() => setModal(null)} submit={sellCart} />}
