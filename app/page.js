@@ -78,6 +78,7 @@ export default function Home() {
   const [modal, setModal] = useState(null);
   const [mobile, setMobile] = useState(false);
   const [period, setPeriod] = useState("today");
+  const [detailSale, setDetailSale] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -290,6 +291,8 @@ export default function Home() {
         transaction_date: new Date().toISOString(),
         business_unit_id: payload.storeId,
         customer_name: payload.customer || null,
+        channel_id: payload.channelId || null,
+        payment_method_id: payload.paymentId || null,
         status: "completed",
         gross_amount: gross,
         discount_amount: Number(payload.discount || 0),
@@ -463,8 +466,8 @@ export default function Home() {
 
         {loading ? <div className="loading">Memuat data…</div> :
           <>
-            {tab === "dashboard" && <Dashboard data={data} stockAlert={stockAlert} totalSales={totalSales} totalExpenses={totalExpenses} period={period} setPeriod={setPeriod} />}
-            {tab === "sales" && <Sales data={data} />}
+            {tab === "dashboard" && <Dashboard data={data} stockAlert={stockAlert} totalSales={totalSales} totalExpenses={totalExpenses} period={period} setPeriod={setPeriod} onDetail={setDetailSale} />}
+            {tab === "sales" && <Sales data={data} onDetail={setDetailSale} />}
             {tab === "purchases" && <Purchases data={data} />}
             {tab === "inventory" && <Inventory data={data} />}
             {tab === "expenses" && <Expenses data={data} onAdd={() => setModal("expense")} onDelete={id => deleteEntity("expense", id)} />}
@@ -482,6 +485,7 @@ export default function Home() {
       {modal === "supplier" && <SupplierModal close={() => setModal(null)} submit={p => addEntity("supplier", p)} />}
       {modal === "expense" && <ExpenseModal data={data} close={() => setModal(null)} submit={p => addEntity("expense", p)} />}
       {modal === "warehouse" && <WarehouseModal data={data} close={() => setModal(null)} submit={p => addEntity("warehouse", p)} />}
+      {detailSale && <SaleDetail sale={detailSale} data={data} close={() => setDetailSale(null)} />}
       {toast && <div className="toast">{toast}</div>}
     </main>
   );
@@ -491,55 +495,110 @@ function Toolbar({title, desc, children}) {
   return <div className="toolbar"><div><h2>{title}</h2><p>{desc}</p></div><div className="toolbarActions">{children}</div></div>;
 }
 
-function Dashboard({data, stockAlert, totalSales, totalExpenses, period, setPeriod}) {
-  const cards = [
-    ["Penjualan Bersih", totalSales, "green"],
-    ["Biaya Operasional", totalExpenses, "red"],
-    ["Produk", data.products.length, "blue"],
-    ["Stok Menipis", stockAlert.length, "orange"]
+function periodRange(period){
+  const now=new Date();
+  const start=new Date(now);
+  start.setHours(0,0,0,0);
+  if(period==='today') return {start,end:now};
+  if(period==='week'){ start.setDate(start.getDate()-6); return {start,end:now}; }
+  start.setDate(1); return {start,end:now};
+}
+function inPeriod(dateValue,period){
+  const d=new Date(dateValue); const {start,end}=periodRange(period);
+  return d>=start && d<=end;
+}
+function storeName(data,id){return data.stores.find(s=>s.id===id)?.name || id || '-';}
+function channelName(data,id){
+  const x=data.channels.find(c=>(c.id||c.code||c)===id || c.name===id);
+  return x?.name || x?.code || id || '-';
+}
+function paymentName(data,id){
+  const x=data.payments.find(c=>(c.id||c.name||c)===id || c.name===id);
+  return x?.name || id || '-';
+}
+function SaleDetail({sale,data,close}){
+  const items=sale.items||[];
+  const gross=Number(sale.gross_amount||0), discount=Number(sale.discount_amount||0), net=Number(sale.net_sales_amount||sale.total||0);
+  return <div className="modalOverlay"><div className="modal detailModal">
+    <div className="modalHead"><div><div className="eyebrow">DETAIL TRANSAKSI</div><h2>{sale.transaction_no}</h2><p>{new Date(sale.transaction_date).toLocaleString('id-ID')}</p></div><button onClick={close}>×</button></div>
+    <div className="detailBody">
+      <div className="detailMeta">
+        <div><span>Store</span><strong>{storeName(data,sale.business_unit_id)}</strong></div>
+        <div><span>Customer</span><strong>{sale.customer_name||'Umum'}</strong></div>
+        <div><span>Channel</span><strong>{channelName(data,sale.channel_id)}</strong></div>
+        <div><span>Pembayaran</span><strong>{paymentName(data,sale.payment_method_id)}</strong></div>
+        <div><span>Status</span><strong className="detailStatus">{sale.status||'completed'}</strong></div>
+      </div>
+      <div className="detailTableWrap"><table><thead><tr><th>Produk</th><th>SKU</th><th className="num">Qty</th><th className="num">Harga</th><th className="num">Subtotal</th></tr></thead>
+      <tbody>{items.length?items.map((it,i)=><tr key={it.id||i}><td><b>{it.product_name||it.name||data.products.find(p=>p.id===it.product_id)?.name||'-'}</b></td><td>{it.sku||data.products.find(p=>p.id===it.product_id)?.sku||'-'}</td><td className="num">{it.quantity||it.qty||0}</td><td className="num">{money(it.unit_selling_price||it.price||0)}</td><td className="num"><b>{money(it.net_amount||it.gross_amount||lineTotal(it))}</b></td></tr>):<tr><td colSpan="5" className="empty">Detail item belum tersedia dari sumber data ini.</td></tr>}</tbody></table></div>
+      <div className="detailTotals"><div><span>Subtotal</span><b>{money(gross)}</b></div><div><span>Diskon</span><b>- {money(discount)}</b></div><div className="grand"><span>Total Dibayar</span><strong>{money(net)}</strong></div></div>
+    </div>
+    <div className="modalActions"><button className="secondary" onClick={close}>Tutup</button><button className="primary" onClick={()=>window.print()}>▣ Cetak</button></div>
+  </div></div>;
+}
+
+function Dashboard({data, stockAlert, totalSales, totalExpenses, period, setPeriod, onDetail}) {
+  const periodSales=data.sales.filter(s=>inPeriod(s.transaction_date,period));
+  const periodPurchases=data.purchases.filter(p=>inPeriod(p.purchase_date,period));
+  const gross=periodSales.reduce((s,x)=>s+Number(x.gross_amount||x.total||0),0);
+  const discounts=periodSales.reduce((s,x)=>s+Number(x.discount_amount||0),0);
+  const net=periodSales.reduce((s,x)=>s+Number(x.net_sales_amount||x.total||0),0);
+  const expenses=periodPurchases.length||data.expenses.length ? data.expenses.filter(e=>inPeriod(e.expense_date,period)).reduce((s,x)=>s+Number(x.amount||0),0) : totalExpenses;
+  const orders=periodSales.length;
+  const aov=orders?net/orders:0;
+  const storeBreakdown={};
+  periodSales.forEach(s=>{const k=storeName(data,s.business_unit_id); storeBreakdown[k]=(storeBreakdown[k]||0)+Number(s.net_sales_amount||s.total||0);});
+  const channelBreakdown={};
+  periodSales.forEach(s=>{const k=channelName(data,s.channel_id); channelBreakdown[k]=(channelBreakdown[k]||0)+Number(s.net_sales_amount||s.total||0);});
+  const topStores=Object.entries(storeBreakdown).sort((a,b)=>b[1]-a[1]);
+  const topChannels=Object.entries(channelBreakdown).sort((a,b)=>b[1]-a[1]);
+  const cards=[
+    ["Penjualan Bersih",net,"green",money],
+    ["Penjualan Kotor",gross,"blue",money],
+    ["Transaksi",orders,"purple",x=>x],
+    ["Rata-rata / Transaksi",aov,"teal",money],
+    ["Diskon",discounts,"orange",money],
+    ["Biaya Operasional",expenses,"red",money],
+    ["Pembelian",periodPurchases.length,"indigo",x=>x],
+    ["Stok Menipis",stockAlert.length,"warning",x=>x]
   ];
   return <>
-    <div className="filters"><select value={period} onChange={e => setPeriod(e.target.value)}>
-      <option value="today">Hari ini</option><option value="week">Minggu ini</option><option value="month">Bulan ini</option>
-    </select></div>
-    <section className="kpis">
-      {cards.map(c => <article className={`kpi ${c[2]}`} key={c[0]}>
-        <span>{c[0]}</span><strong>{c[0] === "Produk" || c[0] === "Stok Menipis" ? c[1] : money(c[1])}</strong>
-      </article>)}
+    <div className="dashTopbar"><div><span className="periodLabel">PERIODE</span><h3>{period==='today'?'Hari ini':period==='week'?'7 hari terakhir':'Bulan berjalan'}</h3></div><select value={period} onChange={e=>setPeriod(e.target.value)}><option value="today">Hari ini</option><option value="week">7 Hari</option><option value="month">Bulan ini</option></select></div>
+    <section className="kpis dashboardKpis">{cards.map(c=><article className={`kpi ${c[2]}`} key={c[0]}><span>{c[0]}</span><strong>{c[3](c[1])}</strong></article>)}</section>
+    <section className="grid dashboardGrid">
+      <article className="panel panelLarge"><div className="panelHead"><div><div className="sectionEyebrow">ACTIVITY</div><h2>Transaksi Terbaru</h2><p>Ringkasan transaksi pada periode yang dipilih.</p></div><span className="summaryChip">{orders} transaksi</span></div>
+        {periodSales.length?<div className="tableWrap"><table className="denseTable"><thead><tr><th>No</th><th>Waktu</th><th>Store</th><th>Customer</th><th>Item</th><th>Total</th><th>Status</th></tr></thead><tbody>{periodSales.slice(0,8).map(s=><tr key={s.id||s.transaction_no} className="clickableRow" onClick={()=>onDetail(s)}><td><b>{s.transaction_no}</b></td><td>{new Date(s.transaction_date).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})}</td><td>{storeName(data,s.business_unit_id)}</td><td>{s.customer_name||'Umum'}</td><td>{s.items?.length||'-'}</td><td><b>{money(s.net_sales_amount||s.total||0)}</b></td><td><em>{s.status||'completed'}</em></td></tr>)}</tbody></table></div>:<div className="empty">Belum ada transaksi pada periode ini.</div>}
+      </article>
+      <article className="panel"><div className="panelHead"><div><div className="sectionEyebrow">INVENTORY ALERT</div><h2>Stok Perlu Perhatian</h2><p>Prioritas pembelian.</p></div><span className="alertCount">{stockAlert.length}</span></div>
+        {stockAlert.length?stockAlert.slice(0,6).map(p=><div className="stockItem" key={p.id}><div className="productIcon">□</div><div className="stockName"><b>{p.name}</b><small>{p.sku} • {p.location||'Lokasi belum diatur'}</small></div><div className="stockMetric"><strong className={p.stock===0?'danger':'warning'}>{p.stock}</strong><small>min {p.min}</small></div></div>):<div className="empty">Semua stok aman.</div>}
+      </article>
     </section>
-    <section className="grid two">
-      <article className="panel">
-        <div className="panelHead"><div><h2>Transaksi Terbaru</h2><p>{data.sales.length ? `${data.sales.length} transaksi tersimpan` : "Data transaksi tersimpan"}</p></div></div>
-        {data.sales.length ? <div className="tableWrap"><table><thead><tr><th>No</th><th>Tanggal</th><th>Item</th><th>Total</th><th>Status</th></tr></thead>
-          <tbody>{data.sales.slice(0,8).map(s => <tr key={s.id || s.transaction_no}>
-            <td><b>{s.transaction_no}</b></td>
-            <td>{new Date(s.transaction_date).toLocaleDateString("id-ID")}</td>
-            <td>{s.items?.length || "—"}</td>
-            <td><b>{money(s.net_sales_amount || s.total || 0)}</b></td>
-            <td><em>{s.status || "completed"}</em></td>
-          </tr>)}</tbody></table></div> : <div className="empty">Belum ada transaksi.</div>}
-      </article>
-      <article className="panel">
-        <div className="panelHead"><div><h2>Stok Perlu Perhatian</h2><p>Segera lakukan pembelian.</p></div></div>
-        {stockAlert.length ? stockAlert.slice(0,6).map(p => <div className="stockItem" key={p.id}>
-          <div className="productIcon">□</div><div className="stockName"><b>{p.name}</b><small>{p.sku}</small></div>
-          <div><strong className={p.stock === 0 ? "danger" : "warning"}>{p.stock} unit</strong><small>Min. {p.min}</small></div>
-        </div>) : <div className="empty">Semua stok aman.</div>}
-      </article>
+    <section className="grid three dashboardLower">
+      <article className="panel"><div className="panelHead"><div><div className="sectionEyebrow">STORE PERFORMANCE</div><h2>Penjualan per Store</h2></div></div>{topStores.length?topStores.map(([name,value],i)=><div className="metricRow" key={name}><div><span className="rank">{i+1}</span><b>{name}</b></div><strong>{money(value)}</strong></div>):<div className="empty">Belum ada data.</div>}</article>
+      <article className="panel"><div className="panelHead"><div><div className="sectionEyebrow">CHANNEL</div><h2>Penjualan per Channel</h2></div></div>{topChannels.length?topChannels.map(([name,value])=><div className="metricRow" key={name}><div><span className="dotBlue"></span><b>{name}</b></div><strong>{money(value)}</strong></div>):<div className="empty">Belum ada data.</div>}</article>
+      <article className="panel"><div className="panelHead"><div><div className="sectionEyebrow">QUICK SUMMARY</div><h2>Ringkasan Hari Ini</h2></div></div><div className="summaryList"><div><span>Total produk</span><b>{data.products.length}</b></div><div><span>Supplier</span><b>{data.suppliers.length}</b></div><div><span>Gudang</span><b>{data.warehouses.length}</b></div><div><span>Movement stok</span><b>{data.movements.length}</b></div></div></article>
     </section>
   </>;
 }
 
-function Products({data,onAdd,onDelete}) {
-  return <><Toolbar title="Produk" desc="Kelola produk, harga, minimum stok, dan SKU." ><button className="primary" onClick={onAdd}>＋ Produk</button></Toolbar>
-    <article className="panel"><div className="tableWrap"><table><thead><tr><th>SKU</th><th>Produk</th><th>Harga</th><th>Stok</th><th>Min.</th><th>Lokasi</th><th>Aksi</th></tr></thead>
-    <tbody>{data.products.map(p=><tr key={p.id}><td><b>{p.sku}</b></td><td>{p.name}</td><td>{money(p.price)}</td><td>{p.stock}</td><td>{p.min}</td><td><code>{p.location || "-"}</code></td><td><button className="iconBtn" onClick={()=>onDelete(p.id)}>Hapus</button></td></tr>)}</tbody></table></div></article></>;
-}
-
-function Sales({data}) {
-  return <><Toolbar title="Penjualan" desc="Penjualan multi-item dengan histori transaksi." />
-    <article className="panel"><div className="tableWrap"><table><thead><tr><th>No</th><th>Tanggal</th><th>Customer</th><th>Item</th><th>Total</th><th>Status</th></tr></thead>
-    <tbody>{data.sales.length ? data.sales.map(s=><tr key={s.id || s.transaction_no}><td><b>{s.transaction_no}</b></td><td>{new Date(s.transaction_date).toLocaleString("id-ID")}</td><td>{s.customer_name || "-"}</td><td>{s.items?.length || "-"}</td><td>{money(s.net_sales_amount || s.total || 0)}</td><td><em>{s.status || "completed"}</em></td></tr>) : <tr><td colSpan="6" className="empty">Belum ada penjualan.</td></tr>}</tbody></table></div></article></>;
+function Sales({data,onDetail}) {
+  const [search,setSearch]=useState("");
+  const [status,setStatus]=useState("all");
+  const [store,setStore]=useState("all");
+  const filtered=data.sales.filter(s=>{
+    const q=search.toLowerCase();
+    const matchSearch=!q || String(s.transaction_no||"").toLowerCase().includes(q) || String(s.customer_name||"").toLowerCase().includes(q);
+    const matchStatus=status==='all'||(s.status||'completed')===status;
+    const matchStore=store==='all'||s.business_unit_id===store;
+    return matchSearch&&matchStatus&&matchStore;
+  });
+  const total=filtered.reduce((s,x)=>s+Number(x.net_sales_amount||x.total||0),0);
+  const items=filtered.reduce((s,x)=>s+Number(x.items?.length||0),0);
+  return <><Toolbar title="Penjualan" desc="Kelola transaksi, lihat detail item, dan pantau nilai penjualan."><div className="salesHeaderStats"><div><span>Transaksi</span><b>{filtered.length}</b></div><div><span>Nilai Penjualan</span><b>{money(total)}</b></div><div><span>Item Line</span><b>{items}</b></div></div></Toolbar>
+    <article className="panel salesPanel"><div className="salesFilters"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cari nomor transaksi atau customer..."/><select value={store} onChange={e=>setStore(e.target.value)}><option value="all">Semua Store</option>{data.stores.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><select value={status} onChange={e=>setStatus(e.target.value)}><option value="all">Semua Status</option><option value="completed">Completed</option><option value="draft">Draft</option></select></div>
+      <div className="tableWrap"><table className="salesTable"><thead><tr><th>Transaksi</th><th>Tanggal</th><th>Store</th><th>Customer</th><th>Channel</th><th>Payment</th><th>Items</th><th className="num">Subtotal</th><th className="num">Diskon</th><th className="num">Total</th><th>Status</th><th></th></tr></thead>
+      <tbody>{filtered.length?filtered.map(s=>{const gross=Number(s.gross_amount||s.total||0), disc=Number(s.discount_amount||0), net=Number(s.net_sales_amount||s.total||0); return <tr key={s.id||s.transaction_no} className="clickableRow" onClick={()=>onDetail(s)}><td><b>{s.transaction_no}</b><small>{s.id?String(s.id).slice(0,8):''}</small></td><td>{new Date(s.transaction_date).toLocaleString('id-ID')}</td><td>{storeName(data,s.business_unit_id)}</td><td>{s.customer_name||'Umum'}</td><td>{channelName(data,s.channel_id)}</td><td>{paymentName(data,s.payment_method_id)}</td><td><span className="itemCountBadge">{s.items?.length||'-'}</span></td><td className="num">{money(gross)}</td><td className="num discountCell">{disc?`- ${money(disc)}`:'-'}</td><td className="num"><b>{money(net)}</b></td><td><em>{s.status||'completed'}</em></td><td><button className="link" onClick={e=>{e.stopPropagation();onDetail(s)}}>Detail →</button></td></tr>}) : <tr><td colSpan="12" className="empty">Tidak ada transaksi yang sesuai.</td></tr>}</tbody></table></div></article>
+  </>;
 }
 
 function Purchases({data}) {
