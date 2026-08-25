@@ -110,7 +110,7 @@ export default function Home(){
 
   return <main className="shell">
     <aside className={`sidebar ${mobile?'open':''}`}>
-      <div className="brand"><span className="brandMark">Y</span><div><b>Yanit Group</b><small>Management System</small></div></div>
+      <div className="brand"><span className="brandMark logoMark"><img src="/yanit-logo.jpg" alt="Yanit Group" /></span><div><b>Yanit Group</b><small>Management System</small></div></div>
       <nav><p>MENU UTAMA</p>{menu.slice(0,5).map(([id,label,icon])=><button key={id} className={tab===id?'nav active':'nav'} onClick={()=>{setTab(id);setMobile(false)}}>{icon}<span>{label}</span></button>)}<p>MASTER DATA</p>{menu.slice(5).map(([id,label,icon])=><button key={id} className={tab===id?'nav active':'nav'} onClick={()=>{setTab(id);setMobile(false)}}>{icon}<span>{label}</span></button>)}</nav>
       <div className="user"><div className="avatar">A</div><div><b>Admin Yanit</b><small>Administrator</small></div></div>
     </aside>
