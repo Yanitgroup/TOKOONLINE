@@ -228,92 +228,308 @@ export default function Home() {
     }
   }
 
-  async function sellCart(payload) {
-    try {
-      if (!payload.items.length) throw new Error("Minimal satu produk harus ditambahkan");
-      for (const item of payload.items) {
-        const product = data.products.find(p => p.id === item.productId);
-        if (!product) throw new Error(`Produk ${item.name} tidak ditemukan`);
-        if (Number(product.stock) < Number(item.qty)) {
-          throw new Error(`Stok ${item.name} tidak cukup. Tersisa ${product.stock}`);
-        }
+ async function sellCart(payload) {
+  try {
+    if (!payload.items?.length) {
+      throw new Error("Minimal satu produk harus ditambahkan");
+    }
+
+    for (const item of payload.items) {
+      const product = data.products.find(
+        p => p.id === item.productId
+      );
+
+      if (!product) {
+        throw new Error(
+          `Produk ${item.name} tidak ditemukan`
+        );
       }
 
-      const gross = payload.items.reduce((s, x) => s + lineTotal(x), 0);
-      const total = Math.max(0, gross - Number(payload.discount || 0));
-      const saleNo = makeNo("SAL", data.sales.length);
+      if (
+        Number(product.stock || 0) <
+        Number(item.qty || 0)
+      ) {
+        throw new Error(
+          `Stok ${item.name} tidak cukup. Tersisa ${product.stock}`
+        );
+      }
+    }
 
-      if (isRemote()) {
-        const inserted = await apiInsert("sales", {
+    const gross = payload.items.reduce(
+      (sum, item) => sum + lineTotal(item),
+      0
+    );
+
+    const discount = Math.max(
+      0,
+      Number(payload.discount || 0)
+    );
+
+    const total = Math.max(
+      0,
+      gross - discount
+    );
+
+    const costs = (payload.costs || [])
+      .map(cost => ({
+        id:
+          cost.id ||
+          crypto.randomUUID(),
+
+        type:
+          cost.type ||
+          "other",
+
+        name:
+          cost.name ||
+          cost.description ||
+          "Biaya Lainnya",
+
+        amount: Math.max(
+          0,
+          Number(cost.amount || 0)
+        )
+      }))
+      .filter(cost => cost.amount > 0);
+
+    const transactionCostTotal =
+      costs.reduce(
+        (sum, cost) =>
+          sum + Number(cost.amount || 0),
+        0
+      );
+
+    const saleNo = makeNo(
+      "SAL",
+      data.sales.length
+    );
+
+    let remoteSaleId = null;
+
+    /* =========================
+       SUPABASE MODE
+       ========================= */
+
+    if (isRemote()) {
+      const inserted = await apiInsert(
+        "sales",
+        {
           transaction_no: saleNo,
-          transaction_date: new Date().toISOString(),
-          business_unit_id: payload.storeId,
-          channel_id: payload.channelId,
-          payment_method_id: payload.paymentId || null,
-          customer_name: payload.customer || null,
+          transaction_date:
+            new Date().toISOString(),
+
+          business_unit_id:
+            payload.storeId,
+
+          channel_id:
+            payload.channelId,
+
+          payment_method_id:
+            payload.paymentId || null,
+
+          customer_name:
+            payload.customer || null,
+
           status: "draft",
-          gross_amount: 0, discount_amount: 0,
-          total_deduction_amount: 0, net_sales_amount: 0
-        });
-        const saleId = inserted?.[0]?.id;
-        if (!saleId) throw new Error("Gagal membuat dokumen penjualan");
-        await apiRpc("post_sale_multi", {
-          p_sale_id: saleId,
-          p_business_unit_id: payload.storeId,
-          p_items: payload.items.map(x => ({
-            product_id: x.productId,
-            quantity: Number(x.qty),
-            unit_selling_price: Number(x.price),
-            discount_amount: 0
-          })),
-          p_discount: Number(payload.discount || 0)
-        });
+
+          gross_amount: 0,
+          discount_amount: 0,
+          total_deduction_amount: 0,
+          net_sales_amount: 0
+        }
+      );
+
+      remoteSaleId =
+        inserted?.[0]?.id;
+
+      if (!remoteSaleId) {
+        throw new Error(
+          "Gagal membuat dokumen penjualan"
+        );
       }
 
-      const nextProducts = data.products.map(product => {
-        const item = payload.items.find(x => x.productId === product.id);
-        return item ? { ...product, stock: Number(product.stock) - Number(item.qty) } : product;
+      await apiRpc(
+        "post_sale_multi_with_costs",
+        {
+          p_sale_id:
+            remoteSaleId,
+
+          p_business_unit_id:
+            payload.storeId,
+
+          p_items:
+            payload.items.map(item => ({
+              product_id:
+                item.productId,
+
+              quantity:
+                Number(item.qty),
+
+              unit_selling_price:
+                Number(item.price),
+
+              discount_amount: 0
+            })),
+
+          p_discount:
+            discount,
+
+          p_costs:
+            costs.map(cost => ({
+              cost_type:
+                cost.type,
+
+              description:
+                cost.name,
+
+              amount:
+                Number(cost.amount)
+            }))
+        }
+      );
+    }
+
+    /* =========================
+       UPDATE LOCAL STOCK
+       ========================= */
+
+    const nextProducts =
+      data.products.map(product => {
+
+        const item =
+          payload.items.find(
+            x =>
+              x.productId ===
+              product.id
+          );
+
+        if (!item) {
+          return product;
+        }
+
+        return {
+          ...product,
+
+          stock:
+            Number(product.stock || 0) -
+            Number(item.qty || 0)
+        };
       });
 
-      const localItems = payload.items.map(x => ({
-        id: crypto.randomUUID(),
-        product_id: x.productId,
-        product_name: x.name,
-        quantity: Number(x.qty),
-        unit_selling_price: Number(x.price),
-        gross_amount: lineTotal(x),
-        discount_amount: 0,
-        net_amount: lineTotal(x)
-      }));
-      const sale = {
-        id: crypto.randomUUID(),
-        transaction_no: saleNo,
-        transaction_date: new Date().toISOString(),
-        business_unit_id: payload.storeId,
-        customer_name: payload.customer || null,
-        channel_id: payload.channelId || null,
-        payment_method_id: payload.paymentId || null,
-        status: "completed",
-        gross_amount: gross,
-        discount_amount: Number(payload.discount || 0),
-        total_deduction_amount: Number(payload.discount || 0),
-        net_sales_amount: total,
-        items: localItems
-      };
+    /* =========================
+       SALE ITEMS
+       ========================= */
 
-      const next = {
-        ...data,
-        products: nextProducts,
-        sales: [sale, ...data.sales]
-      };
-      saveLocal(next);
-      setData(next);
-      setModal(null);
-      notify(`Penjualan ${saleNo} tersimpan • ${money(total)}`);
-    } catch (e) {
-      notify(e.message);
-    }
+    const localItems =
+      payload.items.map(item => ({
+        id:
+          crypto.randomUUID(),
+
+        product_id:
+          item.productId,
+
+        product_name:
+          item.name,
+
+        sku:
+          item.sku || "",
+
+        quantity:
+          Number(item.qty),
+
+        unit_selling_price:
+          Number(item.price),
+
+        gross_amount:
+          lineTotal(item),
+
+        discount_amount:
+          0,
+
+        net_amount:
+          lineTotal(item)
+      }));
+
+    /* =========================
+       SALE DOCUMENT
+       ========================= */
+
+    const sale = {
+      id:
+        remoteSaleId ||
+        crypto.randomUUID(),
+
+      transaction_no:
+        saleNo,
+
+      transaction_date:
+        new Date().toISOString(),
+
+      business_unit_id:
+        payload.storeId,
+
+      customer_name:
+        payload.customer || null,
+
+      channel_id:
+        payload.channelId || null,
+
+      payment_method_id:
+        payload.paymentId || null,
+
+      status:
+        "completed",
+
+      gross_amount:
+        gross,
+
+      discount_amount:
+        discount,
+
+      total_deduction_amount:
+        discount,
+
+      net_sales_amount:
+        total,
+
+      transaction_cost_total:
+        transactionCostTotal,
+
+      costs,
+
+      items:
+        localItems
+    };
+
+    const next = {
+      ...data,
+
+      products:
+        nextProducts,
+
+      sales: [
+        sale,
+        ...data.sales
+      ]
+    };
+
+    saveLocal(next);
+
+    setData(next);
+
+    setModal(null);
+
+    notify(
+      `Penjualan ${saleNo} tersimpan • ${money(total)}`
+    );
+
+  } catch (e) {
+    notify(
+      e?.message ||
+      "Gagal menyimpan penjualan"
+    );
   }
+}
 
   async function purchaseCart(payload) {
     try {
