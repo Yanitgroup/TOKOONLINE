@@ -29,44 +29,258 @@ function lineTotal(line) {
 function normalizeRemote(base, lists) {
   const stores = (lists.business_units || [])
     .filter(x => x.unit_type === "store")
-    .map(x => ({ id: x.id, code: x.code, name: x.name, type: x.unit_type }));
+    .map(x => ({
+      id: x.id,
+      code: x.code,
+      name: x.name,
+      type: x.unit_type
+    }));
 
-  const stockMap = new Map((lists.v_product_stock || []).map(x => [x.id, x]));
+  const stockMap = new Map(
+    (lists.v_product_stock || []).map(
+      x => [x.id, x]
+    )
+  );
+
+  /* =========================
+     GROUP SALE ITEMS
+     ========================= */
+
+  const saleItemsBySale = new Map();
+
+  (lists.sale_items || []).forEach(item => {
+    if (!saleItemsBySale.has(item.sale_id)) {
+      saleItemsBySale.set(
+        item.sale_id,
+        []
+      );
+    }
+
+    saleItemsBySale
+      .get(item.sale_id)
+      .push({
+        ...item,
+
+        product_name:
+          item.product_name ||
+          null,
+
+        sku:
+          item.sku ||
+          null,
+
+        quantity:
+          Number(item.quantity || 0),
+
+        unit_selling_price:
+          Number(
+            item.unit_selling_price || 0
+          ),
+
+        gross_amount:
+          Number(
+            item.gross_amount || 0
+          ),
+
+        discount_amount:
+          Number(
+            item.discount_amount || 0
+          ),
+
+        net_amount:
+          Number(
+            item.net_amount || 0
+          )
+      });
+  });
+
+
+  /* =========================
+     GROUP SALE COSTS
+     ========================= */
+
+  const saleCostsBySale =
+    new Map();
+
+  (lists.sale_costs || []).forEach(cost => {
+
+    if (!saleCostsBySale.has(
+      cost.sale_id
+    )) {
+      saleCostsBySale.set(
+        cost.sale_id,
+        []
+      );
+    }
+
+    saleCostsBySale
+      .get(cost.sale_id)
+      .push({
+        id: cost.id,
+
+        type:
+          cost.cost_type ||
+          "other",
+
+        name:
+          cost.description ||
+          "Biaya",
+
+        description:
+          cost.description ||
+          "Biaya",
+
+        amount:
+          Number(cost.amount || 0),
+
+        created_at:
+          cost.created_at
+      });
+  });
+
+
+  /* =========================
+     BUILD SALES WITH DETAILS
+     ========================= */
+
+  const sales =
+    (lists.sales || []).map(sale => {
+
+      const items =
+        saleItemsBySale.get(
+          sale.id
+        ) || [];
+
+      const costs =
+        saleCostsBySale.get(
+          sale.id
+        ) || [];
+
+      const transactionCostTotal =
+        costs.reduce(
+          (sum, cost) =>
+            sum +
+            Number(
+              cost.amount || 0
+            ),
+          0
+        );
+
+      return {
+        ...sale,
+
+        items,
+
+        costs,
+
+        transaction_cost_total:
+          transactionCostTotal
+      };
+    });
+
 
   return {
     ...base,
+
     stores,
-    categories: lists.product_categories || [],
-    units: lists.units || [],
-    channels: lists.sales_channels || base.channels,
-    payments: lists.payment_methods || base.payments,
-    expenseCategories: lists.expense_categories || [],
-    products: (lists.products || []).map(x => {
-      const s = stockMap.get(x.id);
-      return {
-        id: x.id,
-        sku: x.sku,
-        name: x.name,
-        categoryId: x.category_id,
-        unitId: x.unit_id,
-        price: Number(x.default_selling_price || 0),
-        cost: Number(x.cost || 0),
-        min: Number(x.reorder_min_qty || 0),
-        stock: Number(s?.stock_qty || 0),
-        location: s?.sample_location || "",
-        active: x.is_active
-      };
-    }),
-    suppliers: (lists.suppliers || []).map(x => ({
-      ...x, active: x.is_active, contact: x.contact_person
-    })),
-    warehouses: (lists.warehouses || []).map(x => ({
-      id: x.id, storeId: x.business_unit_id, code: x.code, name: x.name
-    })),
-    sales: lists.sales || [],
-    purchases: lists.purchases || [],
-    expenses: lists.expenses || [],
-    movements: lists.inventory_movements || []
+
+    categories:
+      lists.product_categories || [],
+
+    units:
+      lists.units || [],
+
+    channels:
+      lists.sales_channels ||
+      base.channels,
+
+    payments:
+      lists.payment_methods ||
+      base.payments,
+
+    expenseCategories:
+      lists.expense_categories ||
+      [],
+
+    products:
+      (lists.products || []).map(
+        x => {
+
+          const s =
+            stockMap.get(x.id);
+
+          return {
+            id: x.id,
+            sku: x.sku,
+            name: x.name,
+            categoryId:
+              x.category_id,
+            unitId:
+              x.unit_id,
+
+            price:
+              Number(
+                x.default_selling_price ||
+                0
+              ),
+
+            cost:
+              Number(
+                x.cost || 0
+              ),
+
+            min:
+              Number(
+                x.reorder_min_qty ||
+                0
+              ),
+
+            stock:
+              Number(
+                s?.stock_qty || 0
+              ),
+
+            location:
+              s?.sample_location ||
+              "",
+
+            active:
+              x.is_active
+          };
+        }
+      ),
+
+    suppliers:
+      (lists.suppliers || [])
+        .map(x => ({
+          ...x,
+          active:
+            x.is_active,
+          contact:
+            x.contact_person
+        })),
+
+    warehouses:
+      (lists.warehouses || [])
+        .map(x => ({
+          id: x.id,
+          storeId:
+            x.business_unit_id,
+          code: x.code,
+          name: x.name
+        })),
+
+    sales,
+
+    purchases:
+      lists.purchases || [],
+
+    expenses:
+      lists.expenses || [],
+
+    movements:
+      lists.inventory_movements ||
+      []
   };
 }
 
@@ -84,22 +298,56 @@ export default function Home() {
     (async () => {
       try {
         if (isRemote()) {
-          const tables = {
-            business_units: "select=*&order=code.asc",
-            products: "select=*",
-            v_product_stock: "select=*",
-            suppliers: "select=*&order=name.asc",
-            warehouses: "select=*",
-            sales: "select=*&order=transaction_date.desc",
-            purchases: "select=*&order=purchase_date.desc",
-            expenses: "select=*&order=expense_date.desc",
-            inventory_movements: "select=*&order=occurred_at.desc",
-            product_categories: "select=*",
-            units: "select=*",
-            expense_categories: "select=*&order=name.asc",
-            sales_channels: "select=*&order=name.asc",
-            payment_methods: "select=*&order=name.asc"
-          };
+         const tables = {
+  business_units:
+    "select=*&order=code.asc",
+
+  products:
+    "select=*",
+
+  v_product_stock:
+    "select=*",
+
+  suppliers:
+    "select=*&order=name.asc",
+
+  warehouses:
+    "select=*",
+
+  sales:
+    "select=*&order=transaction_date.desc",
+
+  sale_items:
+    "select=*&order=id.asc",
+
+  sale_costs:
+    "select=*&order=created_at.asc",
+
+  purchases:
+    "select=*&order=purchase_date.desc",
+
+  expenses:
+    "select=*&order=expense_date.desc",
+
+  inventory_movements:
+    "select=*&order=occurred_at.desc",
+
+  product_categories:
+    "select=*",
+
+  units:
+    "select=*",
+
+  expense_categories:
+    "select=*&order=name.asc",
+
+  sales_channels:
+    "select=*&order=name.asc",
+
+  payment_methods:
+    "select=*&order=name.asc"
+};
+  
           const entries = await Promise.all(
             Object.entries(tables).map(async ([t, q]) => [t, await apiList(t, q)])
           );
