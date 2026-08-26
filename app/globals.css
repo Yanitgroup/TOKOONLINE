@@ -673,3 +673,199 @@ code{
 @media(max-width:1180px){.dashboardKpis{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboardGrid{grid-template-columns:1fr}.dashboardLower{grid-template-columns:1fr}.detailMeta{grid-template-columns:repeat(2,1fr)}.salesFilters{grid-template-columns:1fr 1fr}.salesFilters input{grid-column:1/-1}}
 @media(max-width:700px){.dashTopbar{align-items:flex-start;flex-direction:column}.salesHeaderStats{justify-content:flex-start}.salesFilters{grid-template-columns:1fr}.detailMeta{grid-template-columns:1fr}.dashboardKpis{grid-template-columns:1fr 1fr}}
 @media(max-width:520px){.dashboardKpis{grid-template-columns:1fr}.salesHeaderStats>div{min-width:0;flex:1}.salesFilters{padding:12px}.detailBody{padding:14px}}
+
+
+/* =========================================
+   YANIT GROUP — FINAL UI POLISH
+   ========================================= */
+
+/* Fix KPI blue variable */
+.kpi.blue{
+  color:var(--primary);
+}
+
+/* Sidebar: vertical scroll only */
+html,
+body,
+.shell{
+  overflow-x:hidden;
+}
+
+.sidebar{
+  overflow:hidden;
+  min-width:0;
+}
+
+.sidebar nav{
+  min-width:0;
+  width:100%;
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(139,157,184,.35) transparent;
+}
+
+.sidebar nav::-webkit-scrollbar{
+  width:6px;
+  height:0;
+}
+
+.sidebar nav::-webkit-scrollbar-track{
+  background:transparent;
+}
+
+.sidebar nav::-webkit-scrollbar-thumb{
+  background:rgba(139,157,184,.35);
+  border-radius:999px;
+}
+
+.nav{
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  overflow:hidden;
+}
+
+.nav span{
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+
+/* =========================================
+   BIAYA TRANSAKSI PENJUALAN
+   ========================================= */
+
+.saleCostCard{
+  border:1px solid #dce7f8;
+  background:linear-gradient(
+    180deg,
+    #f7faff 0%,
+    #ffffff 100%
+  );
+  border-radius:14px;
+  padding:16px;
+  margin-top:4px;
+}
+
+.saleCostHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+  margin-bottom:14px;
+}
+
+.saleCostHeader h3{
+  margin:4px 0;
+  font-size:15px;
+  color:#1a2940;
+}
+
+.saleCostHeader p{
+  margin:0;
+  max-width:600px;
+  color:#718096;
+  font-size:11px;
+  line-height:1.55;
+}
+
+.saleCostGrid{
+  display:grid;
+  grid-template-columns:repeat(
+    3,
+    minmax(0,1fr)
+  );
+  gap:12px;
+}
+
+.saleCostGrid label{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  font-size:11px;
+  font-weight:750;
+  color:#64748b;
+}
+
+.saleCostGrid input{
+  border:1px solid #dfe5ed;
+  border-radius:10px;
+  padding:11px 12px;
+  background:#fff;
+  color:#1f2937;
+  outline:none;
+}
+
+.saleCostGrid input:focus{
+  border-color:#83abf9;
+  box-shadow:
+    0 0 0 3px
+    rgba(33,102,243,.10);
+}
+
+.costSummary{
+  margin-top:8px;
+  padding-top:10px;
+  border-top:1px dashed #c6d4e8;
+  color:#9a6508;
+}
+
+
+/* =========================================
+   DETAIL TRANSAKSI — BIAYA
+   ========================================= */
+
+.costDetail{
+  margin-top:9px;
+  padding-top:10px;
+  border-top:1px dashed #c6d4e8;
+  color:#8a5c0a;
+}
+
+.costDetail > div{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  padding:4px 0;
+}
+
+.costDetail > div:first-child{
+  color:#53667e;
+}
+
+.costDetail b{
+  color:#79570c;
+}
+
+
+/* =========================================
+   MOBILE
+   ========================================= */
+
+@media(max-width:900px){
+
+  .saleCostGrid{
+    grid-template-columns:
+      repeat(2,minmax(0,1fr));
+  }
+
+  .saleCostHeader{
+    align-items:flex-start;
+  }
+
+}
+
+@media(max-width:600px){
+
+  .saleCostGrid{
+    grid-template-columns:1fr;
+  }
+
+  .saleCostHeader{
+    flex-direction:column;
+  }
+
+}
