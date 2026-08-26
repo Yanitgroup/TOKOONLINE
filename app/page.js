@@ -747,8 +747,47 @@ function SaleDetail({sale,data,close}){
       </div>
       <div className="detailTableWrap"><table><thead><tr><th>Produk</th><th>SKU</th><th className="num">Qty</th><th className="num">Harga</th><th className="num">Subtotal</th></tr></thead>
       <tbody>{items.length?items.map((it,i)=><tr key={it.id||i}><td><b>{it.product_name||it.name||data.products.find(p=>p.id===it.product_id)?.name||'-'}</b></td><td>{it.sku||data.products.find(p=>p.id===it.product_id)?.sku||'-'}</td><td className="num">{it.quantity||it.qty||0}</td><td className="num">{money(it.unit_selling_price||it.price||0)}</td><td className="num"><b>{money(it.net_amount||it.gross_amount||lineTotal(it))}</b></td></tr>):<tr><td colSpan="5" className="empty">Detail item belum tersedia dari sumber data ini.</td></tr>}</tbody></table></div>
-      <div className="detailTotals"><div><span>Subtotal</span><b>{money(gross)}</b></div><div><span>Diskon</span><b>- {money(discount)}</b></div><div className="grand"><span>Total Dibayar</span><strong>{money(net)}</strong></div></div>
+      <div className="detailTotals">
+  <div>
+    <span>Subtotal</span>
+    <b>{money(gross)}</b>
+  </div>
+
+  <div>
+    <span>Diskon</span>
+    <b>- {money(discount)}</b>
+  </div>
+
+  <div className="grand">
+    <span>Total Dibayar Customer</span>
+    <strong>{money(net)}</strong>
+  </div>
+
+  <div className="costDetail">
+    <div>
+      <span>Biaya Transaksi</span>
+      <b>
+        {money(
+          sale.transaction_cost_total || 0
+        )}
+      </b>
     </div>
+
+    {(sale.costs || []).map((cost,index) => (
+      <div key={cost.id || index}>
+        <span>
+          {cost.name ||
+           cost.description ||
+           "Biaya"}
+        </span>
+
+        <b>
+          {money(cost.amount || 0)}
+        </b>
+      </div>
+    ))}
+  </div>
+</div>    </div>
     <div className="modalActions"><button className="secondary" onClick={close}>Tutup</button><button className="primary" onClick={()=>window.print()}>▣ Cetak</button></div>
   </div></div>;
 }
