@@ -637,7 +637,173 @@ function Warehouses({data,onAdd,onDelete}) {
     <article className="panel"><div className="tableWrap"><table><thead><tr><th>Kode</th><th>Gudang</th><th>Store</th><th>Aksi</th></tr></thead>
     <tbody>{data.warehouses.map(w=><tr key={w.id}><td>{w.code}</td><td>{w.name}</td><td>{data.stores.find(s=>s.id===w.storeId)?.name || w.storeId}</td><td><button className="iconBtn" onClick={()=>onDelete(w.id)}>Hapus</button></td></tr>)}</tbody></table></div></article></>;
 }
+function Products({ data, onAdd, onDelete }) {
+  const [search, setSearch] = useState("");
+  const [stockFilter, setStockFilter] = useState("all");
 
+  const filtered = data.products.filter((p) => {
+    const q = search.trim().toLowerCase();
+
+    const matchSearch =
+      !q ||
+      String(p.sku || "").toLowerCase().includes(q) ||
+      String(p.name || "").toLowerCase().includes(q) ||
+      String(p.barcode || "").toLowerCase().includes(q);
+
+    const stock = Number(p.stock || 0);
+    const min = Number(p.min || 0);
+
+    const matchStock =
+      stockFilter === "all" ||
+      (stockFilter === "low" && stock <= min) ||
+      (stockFilter === "out" && stock <= 0) ||
+      (stockFilter === "safe" && stock > min);
+
+    return matchSearch && matchStock;
+  });
+
+  const totalProducts = data.products.length;
+  const lowStock = data.products.filter(
+    (p) => Number(p.stock || 0) <= Number(p.min || 0)
+  ).length;
+  const outOfStock = data.products.filter(
+    (p) => Number(p.stock || 0) <= 0
+  ).length;
+
+  return (
+    <>
+      <Toolbar
+        title="Produk"
+        desc="Kelola produk, harga, stok minimum, SKU, barcode, dan lokasi."
+      >
+        <div className="salesHeaderStats">
+          <div>
+            <span>Total Produk</span>
+            <b>{totalProducts}</b>
+          </div>
+          <div>
+            <span>Stok Menipis</span>
+            <b className="warning">{lowStock}</b>
+          </div>
+          <div>
+            <span>Stok Habis</span>
+            <b className="danger">{outOfStock}</b>
+          </div>
+          <button className="primary" onClick={onAdd}>
+            ＋ Produk
+          </button>
+        </div>
+      </Toolbar>
+
+      <article className="panel">
+        <div className="salesFilters">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari SKU, nama produk, atau barcode..."
+          />
+
+          <select
+            value={stockFilter}
+            onChange={(e) => setStockFilter(e.target.value)}
+          >
+            <option value="all">Semua Stok</option>
+            <option value="low">Stok Menipis</option>
+            <option value="out">Stok Habis</option>
+            <option value="safe">Stok Aman</option>
+          </select>
+        </div>
+
+        <div className="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>SKU</th>
+                <th>Produk</th>
+                <th>Harga Jual</th>
+                <th>Stok</th>
+                <th>Minimum</th>
+                <th>Lokasi</th>
+                <th>Status</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filtered.length ? (
+                filtered.map((p) => {
+                  const stock = Number(p.stock || 0);
+                  const min = Number(p.min || 0);
+
+                  let status = "Aman";
+                  let statusClass = "statusOk";
+
+                  if (stock <= 0) {
+                    status = "Habis";
+                    statusClass = "statusWarn";
+                  } else if (stock <= min) {
+                    status = "Menipis";
+                    statusClass = "statusWarn";
+                  }
+
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <b>{p.sku || "-"}</b>
+                      </td>
+
+                      <td>
+                        <b>{p.name}</b>
+                        {p.barcode && <small>Barcode: {p.barcode}</small>}
+                      </td>
+
+                      <td>
+                        <b>{money(p.price || 0)}</b>
+                      </td>
+
+                      <td>
+                        <strong className={stock <= 0 ? "danger" : stock <= min ? "warning" : ""}>
+                          {stock}
+                        </strong>
+                      </td>
+
+                      <td>{min}</td>
+
+                      <td>
+                        <code>{p.location || "Belum ditentukan"}</code>
+                      </td>
+
+                      <td>
+                        <em className={statusClass}>{status}</em>
+                      </td>
+
+                      <td>
+                        <button
+                          className="iconBtn"
+                          onClick={() => onDelete(p.id)}
+                        >
+                          Hapus
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="8" className="empty">
+                    Tidak ada produk yang sesuai dengan filter.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </>
+  );
+}
+
+                              
 function Reports({data,totalSales,totalExpenses}) {
   const gross = data.sales.reduce((s,x)=>s+Number(x.gross_amount||0),0);
   const discount = data.sales.reduce((s,x)=>s+Number(x.discount_amount||0),0);
