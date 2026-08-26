@@ -982,64 +982,347 @@ function paymentName(data,id){
 }
 function SaleDetail({sale,data,close}){
   const items=sale.items||[];
-  const gross=Number(sale.gross_amount||0), discount=Number(sale.discount_amount||0), net=Number(sale.net_sales_amount||sale.total||0);
-  return <div className="modalOverlay"><div className="modal detailModal">
-    <div className="modalHead"><div><div className="eyebrow">DETAIL TRANSAKSI</div><h2>{sale.transaction_no}</h2><p>{new Date(sale.transaction_date).toLocaleString('id-ID')}</p></div><button onClick={close}>×</button></div>
-    <div className="detailBody">
-      <div className="detailMeta">
-        <div><span>Store</span><strong>{storeName(data,sale.business_unit_id)}</strong></div>
-        <div><span>Customer</span><strong>{sale.customer_name||'Umum'}</strong></div>
-        <div><span>Channel</span><strong>{channelName(data,sale.channel_id)}</strong></div>
-        <div><span>Pembayaran</span><strong>{paymentName(data,sale.payment_method_id)}</strong></div>
-        <div><span>Status</span><strong className="detailStatus">{sale.status||'completed'}</strong></div>
+
+  const gross=Number(
+    sale.gross_amount||0
+  );
+
+  const discount=Number(
+    sale.discount_amount||0
+  );
+
+  const net=Number(
+    sale.net_sales_amount||
+    sale.total||
+    0
+  );
+
+  const transactionCostTotal=Number(
+    sale.transaction_cost_total||0
+  );
+
+  const netReceived=Math.max(
+    0,
+    net-transactionCostTotal
+  );
+
+  return (
+    <div className="modalOverlay">
+
+      <div className="modal detailModal">
+
+        <div className="modalHead">
+
+          <div>
+
+            <div className="eyebrow">
+              DETAIL TRANSAKSI
+            </div>
+
+            <h2>
+              {sale.transaction_no}
+            </h2>
+
+            <p>
+              {new Date(
+                sale.transaction_date
+              ).toLocaleString("id-ID")}
+            </p>
+
+          </div>
+
+          <button onClick={close}>
+            ×
+          </button>
+
+        </div>
+
+
+        <div className="detailBody">
+
+          <div className="detailMeta">
+
+            <div>
+              <span>Store</span>
+              <strong>
+                {storeName(
+                  data,
+                  sale.business_unit_id
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>Customer</span>
+              <strong>
+                {sale.customer_name ||
+                 "Umum"}
+              </strong>
+            </div>
+
+            <div>
+              <span>Channel</span>
+              <strong>
+                {channelName(
+                  data,
+                  sale.channel_id
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>Pembayaran</span>
+              <strong>
+                {paymentName(
+                  data,
+                  sale.payment_method_id
+                )}
+              </strong>
+            </div>
+
+            <div>
+              <span>Status</span>
+              <strong className="detailStatus">
+                {sale.status ||
+                 "completed"}
+              </strong>
+            </div>
+
+          </div>
+
+
+          <div className="detailTableWrap">
+
+            <table>
+
+              <thead>
+
+                <tr>
+                  <th>Produk</th>
+                  <th>SKU</th>
+                  <th className="num">
+                    Qty
+                  </th>
+                  <th className="num">
+                    Harga
+                  </th>
+                  <th className="num">
+                    Subtotal
+                  </th>
+                </tr>
+
+              </thead>
+
+              <tbody>
+
+                {items.length ? (
+
+                  items.map((it,i) => (
+
+                    <tr key={it.id||i}>
+
+                      <td>
+                        <b>
+                          {it.product_name ||
+                           it.name ||
+                           data.products.find(
+                             p =>
+                               p.id ===
+                               it.product_id
+                           )?.name ||
+                           "-"}
+                        </b>
+                      </td>
+
+                      <td>
+                        {it.sku ||
+                         data.products.find(
+                           p =>
+                             p.id ===
+                             it.product_id
+                         )?.sku ||
+                         "-"}
+                      </td>
+
+                      <td className="num">
+                        {it.quantity ||
+                         it.qty ||
+                         0}
+                      </td>
+
+                      <td className="num">
+                        {money(
+                          it.unit_selling_price ||
+                          it.price ||
+                          0
+                        )}
+                      </td>
+
+                      <td className="num">
+                        <b>
+                          {money(
+                            it.net_amount ||
+                            it.gross_amount ||
+                            lineTotal(it)
+                          )}
+                        </b>
+                      </td>
+
+                    </tr>
+
+                  ))
+
+                ) : (
+
+                  <tr>
+
+                    <td
+                      colSpan="5"
+                      className="empty"
+                    >
+                      Detail item belum tersedia
+                      dari sumber data ini.
+                    </td>
+
+                  </tr>
+
+                )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+
+          {/* RINGKASAN */}
+
+          <div className="detailTotals">
+
+            <div>
+              <span>
+                Subtotal
+              </span>
+
+              <b>
+                {money(gross)}
+              </b>
+            </div>
+
+
+            <div>
+              <span>
+                Diskon
+              </span>
+
+              <b>
+                - {money(discount)}
+              </b>
+            </div>
+
+
+            <div className="grand">
+              <span>
+                Total Penjualan
+              </span>
+
+              <strong>
+                {money(net)}
+              </strong>
+            </div>
+
+
+            {/* BIAYA TRANSAKSI */}
+
+            <div className="costDetail">
+
+              <div>
+                <span>
+                  Total Biaya Transaksi
+                </span>
+
+                <b>
+                  {money(
+                    transactionCostTotal
+                  )}
+                </b>
+              </div>
+
+
+              {(sale.costs || []).map(
+                (cost,index) => (
+
+                  <div
+                    key={
+                      cost.id ||
+                      index
+                    }
+                  >
+
+                    <span>
+                      {cost.name ||
+                       cost.description ||
+                       "Biaya"}
+                    </span>
+
+                    <b>
+                      {money(
+                        cost.amount || 0
+                      )}
+                    </b>
+
+                  </div>
+
+                )
+              )}
+
+
+              {/* DANA BERSIH */}
+
+              <div className="netReceived">
+
+                <span>
+                  Dana Bersih Diterima
+                </span>
+
+                <strong>
+                  {money(
+                    netReceived
+                  )}
+                </strong>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div className="modalActions">
+
+          <button
+            className="secondary"
+            onClick={close}
+          >
+            Tutup
+          </button>
+
+          <button
+            className="primary"
+            onClick={() => window.print()}
+          >
+            ▣ Cetak
+          </button>
+
+        </div>
+
       </div>
-      <div className="detailTableWrap"><table><thead><tr><th>Produk</th><th>SKU</th><th className="num">Qty</th><th className="num">Harga</th><th className="num">Subtotal</th></tr></thead>
-      <tbody>{items.length?items.map((it,i)=><tr key={it.id||i}><td><b>{it.product_name||it.name||data.products.find(p=>p.id===it.product_id)?.name||'-'}</b></td><td>{it.sku||data.products.find(p=>p.id===it.product_id)?.sku||'-'}</td><td className="num">{it.quantity||it.qty||0}</td><td className="num">{money(it.unit_selling_price||it.price||0)}</td><td className="num"><b>{money(it.net_amount||it.gross_amount||lineTotal(it))}</b></td></tr>):<tr><td colSpan="5" className="empty">Detail item belum tersedia dari sumber data ini.</td></tr>}</tbody></table></div>
-      <div className="detailTotals">
-  <div>
-    <span>Subtotal</span>
-    <b>{money(gross)}</b>
-  </div>
 
-  <div>
-    <span>Diskon</span>
-    <b>- {money(discount)}</b>
-  </div>
-
-  <div className="grand">
-    <span>Total Dibayar Customer</span>
-    <strong>{money(net)}</strong>
-  </div>
-
-  <div className="costDetail">
-    <div>
-      <span>Biaya Transaksi</span>
-      <b>
-        {money(
-          sale.transaction_cost_total || 0
-        )}
-      </b>
     </div>
-
-    {(sale.costs || []).map((cost,index) => (
-      <div key={cost.id || index}>
-        <span>
-          {cost.name ||
-           cost.description ||
-           "Biaya"}
-        </span>
-
-        <b>
-          {money(cost.amount || 0)}
-        </b>
-      </div>
-    ))}
-  </div>
-</div>    </div>
-    <div className="modalActions"><button className="secondary" onClick={close}>Tutup</button><button className="primary" onClick={()=>window.print()}>▣ Cetak</button></div>
-  </div></div>;
+  );
 }
-
 function Dashboard({data, stockAlert, totalSales, totalExpenses, period, setPeriod, onDetail}) {
   const periodSales=data.sales.filter(s=>inPeriod(s.transaction_date,period));
   const periodPurchases=data.purchases.filter(p=>inPeriod(p.purchase_date,period));
