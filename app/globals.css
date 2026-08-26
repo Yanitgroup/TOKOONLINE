@@ -869,3 +869,15 @@ body,
   }
 
 }
+.netReceived{
+  margin-top:10px;
+  padding-top:12px;
+  border-top:1px solid #cbd8ea;
+  color:#14213d !important;
+  font-weight:800;
+}
+
+.netReceived strong{
+  color:#1463e8;
+  font-size:18px;
+}
