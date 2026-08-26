@@ -1050,65 +1050,749 @@ function CartRow({item,onQty,onRemove,mode}) {
 }
 
 function SaleModal({data,close,submit}) {
-  const [storeId,setStoreId]=useState(data.stores[0]?.id||"");
-  const [channelId,setChannelId]=useState(data.channels[0]?.id || data.channels[0]?.code || data.channels[0] || "");
-  const [paymentId,setPaymentId]=useState(data.payments[0]?.id || data.payments[0] || "");
+  const [storeId,setStoreId]=useState(
+    data.stores[0]?.id||""
+  );
+
+  const [channelId,setChannelId]=useState(
+    data.channels[0]?.id ||
+    data.channels[0]?.code ||
+    data.channels[0] ||
+    ""
+  );
+
+  const [paymentId,setPaymentId]=useState(
+    data.payments[0]?.id ||
+    data.payments[0] ||
+    ""
+  );
+
   const [customer,setCustomer]=useState("");
   const [discount,setDiscount]=useState(0);
-  const [productId,setProductId]=useState(data.products[0]?.id||"");
+
+  const [productId,setProductId]=useState(
+    data.products[0]?.id||""
+  );
+
   const [qty,setQty]=useState(1);
   const [cart,setCart]=useState([]);
 
-  const channel = value => typeof value === "object" ? value.id : value;
-  const payment = value => typeof value === "object" ? value.id : value;
-  const channelName = id => (data.channels.find(c => (c.id || c) === id)?.name || data.channels.find(c => (c.id || c) === id)?.code || id);
-  const paymentName = id => (data.payments.find(c => (c.id || c) === id)?.name || id);
+  /* =========================
+     BIAYA TRANSAKSI
+     ========================= */
 
-  function add() {
-    const p=data.products.find(x=>x.id===productId);
-    if(!p) return;
-    const existing=cart.find(x=>x.productId===p.id);
-    const nextQty=(existing?.qty||0)+qty;
-    if(nextQty>Number(p.stock)) return;
-    setCart(existing
-      ? cart.map(x=>x.productId===p.id?{...x,qty:nextQty}:x)
-      : [...cart,{productId:p.id,name:p.name,sku:p.sku,qty,price:Number(p.price||0)}]);
+  const [costs,setCosts]=useState([
+    {
+      id:"shipping",
+      type:"shipping",
+      name:"Ongkir",
+      amount:0
+    },
+    {
+      id:"admin",
+      type:"admin",
+      name:"Biaya Admin",
+      amount:0
+    },
+    {
+      id:"packing",
+      type:"packing",
+      name:"Biaya Packing",
+      amount:0
+    },
+    {
+      id:"payment_fee",
+      type:"payment_fee",
+      name:"Biaya Payment",
+      amount:0
+    },
+    {
+      id:"affiliate",
+      type:"affiliate",
+      name:"Affiliate",
+      amount:0
+    },
+    {
+      id:"other",
+      type:"other",
+      name:"Biaya Lainnya",
+      amount:0
+    }
+  ]);
+
+  function updateCost(id,value){
+    setCosts(prev =>
+      prev.map(cost =>
+        cost.id===id
+          ? {
+              ...cost,
+              amount:Math.max(
+                0,
+                Number(value)||0
+              )
+            }
+          : cost
+      )
+    );
+  }
+
+  const transactionCostTotal =
+    costs.reduce(
+      (sum,cost) =>
+        sum + Number(cost.amount||0),
+      0
+    );
+
+  /* =========================
+     ADD PRODUCT
+     ========================= */
+
+  function add(){
+
+    const product =
+      data.products.find(
+        item => item.id===productId
+      );
+
+    if(!product){
+      return;
+    }
+
+    const existing =
+      cart.find(
+        item =>
+          item.productId===product.id
+      );
+
+    const nextQty =
+      (existing?.qty||0)+qty;
+
+    if(
+      nextQty >
+      Number(product.stock||0)
+    ){
+      return;
+    }
+
+    if(existing){
+
+      setCart(
+        cart.map(item =>
+          item.productId===product.id
+            ? {
+                ...item,
+                qty:nextQty
+              }
+            : item
+        )
+      );
+
+    } else {
+
+      setCart([
+        ...cart,
+        {
+          productId:product.id,
+          name:product.name,
+          sku:product.sku,
+          qty,
+          price:
+            Number(
+              product.price||0
+            )
+        }
+      ]);
+
+    }
+
     setQty(1);
   }
-  const gross=cart.reduce((s,x)=>s+lineTotal(x),0);
-  const total=Math.max(0,gross-Number(discount||0));
 
-  return <div className="modalOverlay"><div className="modal transactionModal">
-    <div className="modalHead"><div><h2>Penjualan Baru</h2><p>Tambahkan beberapa produk dalam satu transaksi.</p></div><button onClick={close}>×</button></div>
-    <div className="form">
-      <div className="formRow tx-form-top">
-        <label>Store<select value={storeId} onChange={e=>setStoreId(e.target.value)}>{data.stores.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-        <label>Channel<select value={channelId} onChange={e=>setChannelId(e.target.value)}>{data.channels.map(c=><option key={c.id||c.code||c} value={c.id||c.code||c}>{c.name||c.code||c}</option>)}</select></label>
-        <label>Pembayaran<select value={paymentId} onChange={e=>setPaymentId(e.target.value)}>{data.payments.map(c=><option key={c.id||c.name||c} value={c.id||c.name||c}>{c.name||c}</option>)}</select></label>
-        <label>Customer<input value={customer} onChange={e=>setCustomer(e.target.value)} placeholder="Opsional"/></label>
+  /* =========================
+     TOTAL
+     ========================= */
+
+  const gross =
+    cart.reduce(
+      (sum,item) =>
+        sum + lineTotal(item),
+      0
+    );
+
+  const discountAmount =
+    Math.max(
+      0,
+      Number(discount||0)
+    );
+
+  const total =
+    Math.max(
+      0,
+      gross-discountAmount
+    );
+
+  /* =========================
+     RENDER
+     ========================= */
+
+  return (
+    <div className="modalOverlay">
+
+      <div className="modal transactionModal">
+
+        {/* HEADER */}
+
+        <div className="modalHead">
+
+          <div>
+
+            <div className="eyebrow">
+              TRANSAKSI PENJUALAN
+            </div>
+
+            <h2>
+              Penjualan Baru
+            </h2>
+
+            <p>
+              Tambahkan beberapa produk
+              dalam satu transaksi.
+            </p>
+
+          </div>
+
+          <button
+            onClick={close}
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        <div className="form">
+
+          {/* =========================
+              INFORMASI TRANSAKSI
+              ========================= */}
+
+          <div className="formRow tx-form-top">
+
+            <label>
+
+              Store
+
+              <select
+                value={storeId}
+                onChange={e =>
+                  setStoreId(e.target.value)
+                }
+              >
+
+                {data.stores.map(store => (
+
+                  <option
+                    key={store.id}
+                    value={store.id}
+                  >
+                    {store.name}
+                  </option>
+
+                ))}
+
+              </select>
+
+            </label>
+
+
+            <label>
+
+              Channel
+
+              <select
+                value={channelId}
+                onChange={e =>
+                  setChannelId(e.target.value)
+                }
+              >
+
+                {data.channels.map(channel => {
+
+                  const id =
+                    channel.id ||
+                    channel.code ||
+                    channel;
+
+                  const name =
+                    channel.name ||
+                    channel.code ||
+                    channel;
+
+                  return (
+                    <option
+                      key={id}
+                      value={id}
+                    >
+                      {name}
+                    </option>
+                  );
+
+                })}
+
+              </select>
+
+            </label>
+
+
+            <label>
+
+              Pembayaran
+
+              <select
+                value={paymentId}
+                onChange={e =>
+                  setPaymentId(e.target.value)
+                }
+              >
+
+                {data.payments.map(payment => {
+
+                  const id =
+                    payment.id ||
+                    payment.name ||
+                    payment;
+
+                  const name =
+                    payment.name ||
+                    payment;
+
+                  return (
+                    <option
+                      key={id}
+                      value={id}
+                    >
+                      {name}
+                    </option>
+                  );
+
+                })}
+
+              </select>
+
+            </label>
+
+
+            <label>
+
+              Customer
+
+              <input
+                value={customer}
+                onChange={e =>
+                  setCustomer(e.target.value)
+                }
+                placeholder="Opsional"
+              />
+
+            </label>
+
+          </div>
+
+
+          {/* =========================
+              TAMBAH PRODUK
+              ========================= */}
+
+          <div className="tx-add-row">
+
+            <select
+              value={productId}
+              onChange={e =>
+                setProductId(
+                  e.target.value
+                )
+              }
+            >
+
+              {data.products.map(product => (
+
+                <option
+                  key={product.id}
+                  value={product.id}
+                >
+                  {product.name}
+                  {" • stok "}
+                  {product.stock}
+                </option>
+
+              ))}
+
+            </select>
+
+
+            <input
+              type="number"
+              min="1"
+              value={qty}
+              onChange={e =>
+                setQty(
+                  Math.max(
+                    1,
+                    Number(
+                      e.target.value
+                    )||1
+                  )
+                )
+              }
+            />
+
+
+            <button
+              className="primary"
+              type="button"
+              onClick={add}
+            >
+              ＋ Tambah
+            </button>
+
+          </div>
+
+
+          {/* =========================
+              CART
+              ========================= */}
+
+          <div className="tx-cart">
+
+            {cart.length ? (
+
+              <table>
+
+                <thead>
+
+                  <tr>
+
+                    <th>
+                      Produk
+                    </th>
+
+                    <th>
+                      Qty
+                    </th>
+
+                    <th>
+                      Harga
+                    </th>
+
+                    <th>
+                      Subtotal
+                    </th>
+
+                    <th></th>
+
+                  </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                  {cart.map(item => (
+
+                    <CartRow
+                      key={item.productId}
+                      item={item}
+                      mode="sale"
+
+                      onQty={(
+                        newQty,
+                        newPrice,
+                        priceChange
+                      ) => {
+
+                        setCart(
+                          cart.map(row =>
+                            row.productId===
+                            item.productId
+
+                              ? {
+                                  ...row,
+
+                                  qty:newQty,
+
+                                  ...(priceChange
+                                    ? {
+                                        price:newPrice
+                                      }
+                                    : {})
+                                }
+
+                              : row
+                          )
+                        );
+
+                      }}
+
+                      onRemove={() => {
+
+                        setCart(
+                          cart.filter(
+                            row =>
+                              row.productId !==
+                              item.productId
+                          )
+                        );
+
+                      }}
+
+                    />
+
+                  ))}
+
+                </tbody>
+
+              </table>
+
+            ) : (
+
+              <div className="empty tx-empty">
+
+                Belum ada item.
+                Tambahkan produk
+                ke keranjang.
+
+              </div>
+
+            )}
+
+          </div>
+
+
+          {/* =========================
+              BIAYA TRANSAKSI
+              ========================= */}
+
+          <section className="saleCostCard">
+
+            <div className="saleCostHeader">
+
+              <div>
+
+                <div className="sectionEyebrow">
+                  BIAYA TRANSAKSI
+                </div>
+
+                <h3>
+                  Biaya yang muncul
+                  dari transaksi
+                </h3>
+
+                <p>
+                  Biaya dicatat untuk
+                  menghitung profit.
+                  Tidak otomatis menambah
+                  tagihan customer.
+                </p>
+
+              </div>
+
+
+              <span className="summaryChip">
+
+                Total biaya{" "}
+
+                {money(
+                  transactionCostTotal
+                )}
+
+              </span>
+
+            </div>
+
+
+            <div className="saleCostGrid">
+
+              {costs.map(cost => (
+
+                <label
+                  key={cost.id}
+                >
+
+                  {cost.name}
+
+                  <input
+                    type="number"
+                    min="0"
+                    value={cost.amount}
+                    onChange={e =>
+                      updateCost(
+                        cost.id,
+                        e.target.value
+                      )
+                    }
+                    placeholder="Rp 0"
+                  />
+
+                </label>
+
+              ))}
+
+            </div>
+
+          </section>
+
+
+          {/* =========================
+              RINGKASAN KEUANGAN
+              ========================= */}
+
+          <div className="formRow">
+
+            <label>
+
+              Diskon
+
+              <input
+                type="number"
+                min="0"
+                value={discount}
+                onChange={e =>
+                  setDiscount(
+                    Math.max(
+                      0,
+                      Number(
+                        e.target.value
+                      )||0
+                    )
+                  )
+                }
+              />
+
+            </label>
+
+
+            <div className="tx-summary">
+
+              <div>
+
+                <span>
+                  Subtotal
+                </span>
+
+                <b>
+                  {money(gross)}
+                </b>
+
+              </div>
+
+
+              <div>
+
+                <span>
+                  Diskon
+                </span>
+
+                <b>
+                  - {money(
+                    discountAmount
+                  )}
+                </b>
+
+              </div>
+
+
+              <div className="grand">
+
+                <span>
+                  Total Dibayar Customer
+                </span>
+
+                <strong>
+                  {money(total)}
+                </strong>
+
+              </div>
+
+
+              <div className="costSummary">
+
+                <span>
+                  Biaya Transaksi
+                </span>
+
+                <b>
+                  {money(
+                    transactionCostTotal
+                  )}
+                </b>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+        {/* =========================
+            FOOTER
+            ========================= */}
+
+        <div className="modalActions">
+
+          <button
+            className="secondary"
+            onClick={close}
+          >
+            Batal
+          </button>
+
+
+          <button
+            className="primary"
+
+            onClick={() => {
+
+              submit({
+
+                items:cart,
+
+                storeId,
+
+                channelId,
+
+                paymentId,
+
+                customer,
+
+                discount:
+
+                  discountAmount,
+
+                costs:
+
+                  costs.filter(
+                    cost =>
+                      Number(
+                        cost.amount||0
+                      ) > 0
+                  )
+
+              });
+
+            }}
+
+          >
+            Simpan Penjualan
+          </button>
+
+        </div>
+
       </div>
 
-      <div className="tx-add-row">
-        <select value={productId} onChange={e=>setProductId(e.target.value)}>{data.products.map(p=><option key={p.id} value={p.id}>{p.name} • stok {p.stock}</option>)}</select>
-        <input type="number" min="1" value={qty} onChange={e=>setQty(Math.max(1,Number(e.target.value)||1))}/>
-        <button className="primary" type="button" onClick={add}>＋ Tambah</button>
-      </div>
-
-      <div className="tx-cart">
-        {cart.length ? <table><thead><tr><th>Produk</th><th>Qty</th><th>Harga</th><th>Subtotal</th><th></th></tr></thead>
-          <tbody>{cart.map(item=><CartRow key={item.productId} item={item} mode="sale"
-            onQty={(newQty,newPrice,priceChange)=>setCart(cart.map(x=>x.productId===item.productId?{...x,qty:newQty,...(priceChange?{price:newPrice}:{})}:x))}
-            onRemove={()=>setCart(cart.filter(x=>x.productId!==item.productId))}/>)}</tbody></table>
-          : <div className="empty tx-empty">Belum ada item. Tambahkan produk ke keranjang.</div>}
-      </div>
-
-      <div className="formRow">
-        <label>Diskon<input type="number" min="0" value={discount} onChange={e=>setDiscount(Math.max(0,Number(e.target.value)||0))}/></label>
-        <div className="tx-summary"><div><span>Subtotal</span><b>{money(gross)}</b></div><div><span>Diskon</span><b>- {money(discount)}</b></div><div className="grand"><span>Total</span><strong>{money(total)}</strong></div></div>
-      </div>
     </div>
-    <div className="modalActions"><button className="secondary" onClick={close}>Batal</button><button className="primary" onClick={()=>submit({items:cart,storeId,channelId,paymentId,customer,discount})}>Simpan Penjualan</button></div>
-  </div></div>;
+  );
 }
 
 function PurchaseModal({data,close,submit}) {
