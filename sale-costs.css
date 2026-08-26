@@ -1,0 +1,92 @@
+/* Add to the end of app/globals.css */
+
+.saleFinancialSection{
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+
+.saleCostCard{
+  border:1px solid #dce7f8;
+  background:linear-gradient(180deg,#f7faff,#fff);
+  border-radius:14px;
+  padding:15px;
+}
+
+.saleCostHeader{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  align-items:flex-start;
+  margin-bottom:13px;
+}
+
+.saleCostHeader h3{
+  margin:3px 0 4px;
+  font-size:14px;
+  color:#1a2940;
+}
+
+.saleCostHeader p{
+  margin:0;
+  color:#718096;
+  font-size:11px;
+}
+
+.saleCostGrid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;
+}
+
+.saleCostGrid label{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  font-size:11px;
+  color:#64748b;
+  font-weight:750;
+}
+
+.saleCostGrid input{
+  border:1px solid #dfe5ed;
+  border-radius:9px;
+  padding:10px;
+  background:#fff;
+}
+
+.costSummary{
+  margin-top:7px;
+  padding-top:9px;
+  border-top:1px dashed #cbd6e6;
+  color:#8a5c0a;
+}
+
+.costDetail{
+  margin-top:8px;
+  padding-top:10px;
+  border-top:1px dashed #cbd6e6;
+  color:#8a5c0a;
+}
+
+.costDetail div{
+  display:flex;
+  justify-content:space-between;
+  padding:4px 0;
+}
+
+@media(max-width:800px){
+  .saleCostGrid{
+    grid-template-columns:1fr 1fr;
+  }
+
+  .saleCostHeader{
+    flex-direction:column;
+  }
+}
+
+@media(max-width:520px){
+  .saleCostGrid{
+    grid-template-columns:1fr;
+  }
+}
